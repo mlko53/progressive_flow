@@ -30,15 +30,17 @@ def main(args):
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
 
-    trainset = Dataset("train", "MNIST", 28, False)
+    trainset = Dataset("train", args.dataset, 32, False)
     trainloader = data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
     
-    testset = Dataset("test", "MNIST", 28, False)
+    testset = Dataset("test", args.dataset, 32, False)
     testloader = data.DataLoader(testset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+
+    image_channels = 1 if args.dataset == "MNIST" else 3
 
     # Model
     print('Building model..')
-    net = Glow(image_channels=1,
+    net = Glow(image_channels=image_channels,
                num_channels=args.num_channels,
                num_levels=args.num_levels,
                num_steps=args.num_steps)
@@ -165,6 +167,7 @@ if __name__ == '__main__':
     parser.add_argument('--resume', type=str2bool, default=False, help='Resume from checkpoint')
     parser.add_argument('--seed', type=int, default=0, help='Random seed for reproducibility')
     parser.add_argument('--warm_up', default=500000, type=int, help='Number of steps for lr warm-up')
+    parser.add_argument('--dataset', default="CIFAR", type=str, help='no help')
 
     best_loss = 0
     global_step = 0
