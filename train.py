@@ -12,7 +12,6 @@ import torch.backends.cudnn as cudnn
 import torch.utils.data as data
 import torchvision
 import torchvision.transforms as transforms
-import util
 
 from models import Glow
 from tqdm import tqdm
@@ -29,25 +28,16 @@ def main(args):
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
 
-    # No normalization applied, since Glow expects inputs in (0, 1)
-    transform_train = transforms.Compose([
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor()
-    ])
-
-    transform_test = transforms.Compose([
-        transforms.ToTensor()
-    ])
-
-    trainset = torchvision.datasets.CIFAR10(root='data', train=True, download=True, transform=transform_train)
+    trainset = Dataset("train", "MNIST", 28)
     trainloader = data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-
-    testset = torchvision.datasets.CIFAR10(root='data', train=False, download=True, transform=transform_test)
-    testloader = data.DataLoader(testset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
+    
+    testset = Dataset("test", "MNIST", 28)
+    testloader = data.DataLoader(testset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
     # Model
     print('Building model..')
-    net = Glow(num_channels=args.num_channels,
+    net = Glow(input_channels=1,
+               num_channels=args.num_channels,
                num_levels=args.num_levels,
                num_steps=args.num_steps)
     net = net.to(device)
