@@ -16,6 +16,7 @@ import torchvision.transforms as transforms
 from models import Glow, NLLLoss
 from tqdm import tqdm
 from dataset import Dataset
+import utils as util
 
 
 def main(args):
@@ -37,7 +38,7 @@ def main(args):
 
     # Model
     print('Building model..')
-    net = Glow(input_channels=1,
+    net = Glow(image_channels=1,
                num_channels=args.num_channels,
                num_levels=args.num_levels,
                num_steps=args.num_steps)

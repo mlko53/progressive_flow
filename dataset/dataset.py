@@ -22,13 +22,13 @@ class Dataset(data.Dataset):
 
         train = (split == "train")
         if name == "MNIST":
-            self.data = datasets.MNIST(train=train, download=True, transform=transform)
+            self.data = datasets.MNIST(root="data/", train=train, download=True, transform=transform)
             if return_tuple:
-                self.downsampled_data = datasets.MNIST(train=train, download=True, transform=downsampled_transform)
+                self.downsampled_data = datasets.MNIST(root="data/", train=train, download=True, transform=downsampled_transform)
         if name == "CIFAR":
-            self.data = datasets.CIFAR10(train=train, download=True, transform=transform)
+            self.data = datasets.CIFAR10(root="data/", train=train, download=True, transform=transform)
             if return_tuple:
-                self.downsampled_data = datasets.CIFAR10(train=train, download=True, transform=downsampled_transform)
+                self.downsampled_data = datasets.CIFAR10(root="data/", train=train, download=True, transform=downsampled_transform)
         if name == "CELEBA":
             assert(False)
         
