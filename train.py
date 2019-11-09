@@ -13,8 +13,9 @@ import torch.utils.data as data
 import torchvision
 import torchvision.transforms as transforms
 
-from models import Glow
+from models import Glow, NLLLoss
 from tqdm import tqdm
+from dataset import Dataset
 
 
 def main(args):
@@ -28,10 +29,10 @@ def main(args):
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
 
-    trainset = Dataset("train", "MNIST", 28)
+    trainset = Dataset("train", "MNIST", 28, False)
     trainloader = data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
     
-    testset = Dataset("test", "MNIST", 28)
+    testset = Dataset("test", "MNIST", 28, False)
     testloader = data.DataLoader(testset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
     # Model
@@ -58,7 +59,7 @@ def main(args):
         start_epoch = checkpoint['epoch']
         global_step = start_epoch * len(trainset)
 
-    loss_fn = util.NLLLoss().to(device)
+    loss_fn = NLLLoss().to(device)
     optimizer = optim.Adam(net.parameters(), lr=args.lr)
     scheduler = sched.LambdaLR(optimizer, lambda s: min(1., s / args.warm_up))
 

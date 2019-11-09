@@ -1,5 +1,7 @@
 import numpy as np
 import torch
+import torch.nn as nn
+
 
 class NLLLoss(nn.Module):
     """Negative log-likelihood loss assuming isotropic gaussian with unit norm.
