@@ -1,3 +1,4 @@
+import pandas as pd
 from pathlib import Path
 from PIL import Image
 
@@ -15,6 +16,7 @@ class Dataset(data.Dataset):
 
         transform = transforms.Compose([
             transforms.Resize(resolution), 
+            transforms.CenterCrop(resolution),
             transforms.ToTensor()
         ])
         
@@ -42,9 +44,9 @@ class Dataset(data.Dataset):
 
     def __getitem__(self, index):
         if self.return_tuple:
-            return (self.data[index], self.downsampled_data[index])
+            return (self.data[index][0], self.downsampled_data[index][0])
         else:
-            return self.data[index]
+            return self.data[index][0]
 
 class Celeba_Dataset(data.Dataset):
     def __init__(self, split, transform):
@@ -65,4 +67,4 @@ class Celeba_Dataset(data.Dataset):
     def __getitem__(self, index):
         x = Image.open(self.root / self.data[index])
         x = self.transform(x)
-        return x
+        return (x, None)

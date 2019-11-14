@@ -30,10 +30,10 @@ def main(args):
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
 
-    trainset = Dataset("train", args.dataset, 32, False)
+    trainset = Dataset("train", args.dataset, args.size, False)
     trainloader = data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
     
-    testset = Dataset("test", args.dataset, 32, False)
+    testset = Dataset("test", args.dataset, args.size, False)
     testloader = data.DataLoader(testset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
     image_channels = 1 if args.dataset == "MNIST" else 3
@@ -79,7 +79,7 @@ def train(epoch, net, trainloader, device, optimizer, scheduler, loss_fn, max_gr
     net.train()
     loss_meter = util.AverageMeter()
     with tqdm(total=len(trainloader.dataset)) as progress_bar:
-        for x, _ in trainloader:
+        for x in trainloader:
             x = x.to(device)
             optimizer.zero_grad()
             z, sldj = net(x, reverse=False)
@@ -166,8 +166,9 @@ if __name__ == '__main__':
     parser.add_argument('--num_workers', default=8, type=int, help='Number of data loader threads')
     parser.add_argument('--resume', type=str2bool, default=False, help='Resume from checkpoint')
     parser.add_argument('--seed', type=int, default=0, help='Random seed for reproducibility')
+    parser.add_argument('--size', type=int, default=32, help='Resolution to generate')
     parser.add_argument('--warm_up', default=500000, type=int, help='Number of steps for lr warm-up')
-    parser.add_argument('--dataset', default="CIFAR", type=str, help='no help')
+    parser.add_argument('--dataset', default="CIFAR", type=str, help='Dataset to use')
 
     best_loss = 0
     global_step = 0
