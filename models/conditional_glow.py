@@ -15,6 +15,7 @@ class ConditionalGlow(nn.Module):
         self.register_buffer('bounds', torch.tensor([0.9], dtype=torch.float32))
         self.flows = _CGlow(in_channels=4 * image_channels,  # RGB image after squeeze
                            mid_channels=num_channels,
+                           cond_channels=image_channels,
                            num_levels=num_levels,
                            num_steps=num_steps)
 
@@ -51,15 +52,17 @@ class ConditionalGlow(nn.Module):
 
 
 class _CGlow(nn.Module):
-    def __init__(self, in_channels, mid_channels, num_levels, num_steps):
+    def __init__(self, in_channels, mid_channels, cond_channels, num_levels, num_steps):
         super(_CGlow, self).__init__()
         self.steps = nn.ModuleList([_CFlowStep(in_channels=in_channels,
-                                              mid_channels=mid_channels)
+                                              mid_channels=mid_channels,
+                                              cond_channels=cond_channels)
                                     for _ in range(num_steps)])
 
         if num_levels > 1:
             self.next = _CGlow(in_channels=2 * in_channels,
                               mid_channels=mid_channels,
+                              cond_channels=4 * cond_channels,
                               num_levels=num_levels - 1,
                               num_steps=num_steps)
         else:
@@ -71,13 +74,13 @@ class _CGlow(nn.Module):
                 x, sldj = step(x, x2, sldj, reverse)
 
         if self.next is not None:
-            import pdb
-            pdb.set_trace()
             x = squeeze(x)
+            x2 = squeeze(x2)
             x, x_split = x.chunk(2, dim=1)
-            x, sldj = self.next(x, sldj, reverse)
+            x, sldj = self.next(x, x2, sldj, reverse)
             x = torch.cat((x, x_split), dim=1)
             x = squeeze(x, reverse=True)
+            x2 = squeeze(x2, reverse=True)
 
         if reverse:
             for step in reversed(self.steps):
@@ -87,13 +90,13 @@ class _CGlow(nn.Module):
 
 
 class _CFlowStep(nn.Module):
-    def __init__(self, in_channels, mid_channels):
+    def __init__(self, in_channels, mid_channels, cond_channels):
         super(_CFlowStep, self).__init__()
 
         # Activation normalization, invertible 1x1 convolution, affine coupling
         self.norm = ActNorm(in_channels, return_ldj=True)
         self.conv = InvConv(in_channels)
-        self.coup = ConditionalCoupling(in_channels // 2, mid_channels)
+        self.coup = ConditionalCoupling(in_channels // 2, mid_channels, cond_channels)
 
     def forward(self, x, x2, sldj=None, reverse=False):
         if reverse:

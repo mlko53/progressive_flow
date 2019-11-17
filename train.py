@@ -87,10 +87,10 @@ def train(epoch, net, trainloader, device, optimizer, scheduler, loss_fn, max_gr
         for x in trainloader:
             optimizer.zero_grad()
             if conditional:
-                x1, x2 = x
-                x1 = x1.to(device)
+                x, x2 = x
+                x = x.to(device)
                 x2 = x2.to(device)
-                z, sldj = net(x1, x2, reverse=False)
+                z, sldj = net(x, x2, reverse=False)
             else:
                 x = x.to(device)
                 z, sldj = net(x, reverse=False)
@@ -179,7 +179,7 @@ if __name__ == '__main__':
     parser.add_argument('--name', type=str, default='debugging', help='Name of experiment')
     parser.add_argument('--num_channels', '-C', default=512, type=int, help='Number of channels in hidden layers')
     parser.add_argument('--num_levels', '-L', default=3, type=int, help='Number of levels in the Glow model')
-    parser.add_argument('--num_steps', '-K', default=32, type=int, help='Number of steps of flow in each level')
+    parser.add_argument('--num_steps', '-K', default=16, type=int, help='Number of steps of flow in each level')
     parser.add_argument('--num_epochs', default=100, type=int, help='Number of epochs to train')
     parser.add_argument('--num_samples', default=64, type=int, help='Number of samples at test time')
     parser.add_argument('--num_workers', default=8, type=int, help='Number of data loader threads')
