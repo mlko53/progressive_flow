@@ -40,9 +40,9 @@ class Coupling(nn.Module):
         return x, ldj
 
 class ConditionalCoupling(nn.Module):
-    def __init__(self, in_channels, mid_channels):
+    def __init__(self, in_channels, mid_channels, cond_channels):
         super(ConditionalCoupling, self).__init__()
-        self.nn = NN(int(1.5*in_channels), mid_channels, 2 * in_channels)
+        self.nn = NN(in_channels + cond_channels, mid_channels, 2 * in_channels)
         self.scale = nn.Parameter(torch.ones(in_channels, 1, 1))
 
     def forward(self, x, x2, ldj, reverse=False):
