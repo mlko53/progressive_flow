@@ -39,6 +39,32 @@ class Coupling(nn.Module):
 
         return x, ldj
 
+class ConditionalCoupling(nn.Module):
+    def __init__(self, in_channels, mid_channels):
+        super(ConditionalCoupling, self).__init__()
+        self.nn = NN(int(1.5*in_channels), mid_channels, 2 * in_channels)
+        self.scale = nn.Parameter(torch.ones(in_channels, 1, 1))
+
+    def forward(self, x, x2, ldj, reverse=False):
+        x_change, x_id = x.chunk(2, dim=1)
+
+        try:
+            st = self.nn(torch.cat((x_id, x2), dim=1))
+        except:
+            import pdb
+            pdb.set_trace()
+        s, t = st[:, 0::2, ...], st[:, 1::2, ...]
+        s = self.scale * torch.tanh(s)
+
+        if reverse:
+            x_change = x_change * s.mul(-1).exp() - t
+            ldj = ldj - s.flatten(1).sum(-1)
+        else:
+            x_change = (x_change + t) * s.exp()
+            ldj = ldj + s.flatten(1).sum(-1)
+
+        x = torch.cat((x_change, x_id), dim=1)
+        return x, ldj
 
 class NN(nn.Module):
     """Small convolutional network used to compute scale and translate factors.

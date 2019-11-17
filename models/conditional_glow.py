@@ -3,34 +3,22 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .act_norm import ActNorm
-from .coupling import Coupling
+from .coupling import ConditionalCoupling
 from .inv_conv import InvConv
 from .utils import squeeze
 
 
-class Glow(nn.Module):
-    """Glow Model
-    Based on the paper:
-    "Glow: Generative Flow with Invertible 1x1 Convolutions"
-    by Diederik P. Kingma, Prafulla Dhariwal
-    (https://arxiv.org/abs/1807.03039).
-    Args:
-        num_channels (int): Number of channels in middle convolution of each
-            step of flow.
-        num_levels (int): Number of levels in the entire model.
-        num_steps (int): Number of steps of flow for each level.
-    """
+class ConditionalGlow(nn.Module):
     def __init__(self, image_channels, num_channels, num_levels, num_steps):
-        super(Glow, self).__init__()
+        super(ConditionalGlow, self).__init__()
 
-        # Use bounds to rescale images before converting to logits, not learned
         self.register_buffer('bounds', torch.tensor([0.9], dtype=torch.float32))
-        self.flows = _Glow(in_channels=4 * image_channels,  # RGB image after squeeze
+        self.flows = _CGlow(in_channels=4 * image_channels,  # RGB image after squeeze
                            mid_channels=num_channels,
                            num_levels=num_levels,
                            num_steps=num_steps)
 
-    def forward(self, x, reverse=False):
+    def forward(self, x, x2, reverse=False):
         if reverse:
             sldj = torch.zeros(x.size(0), device=x.device)
         else:
@@ -43,21 +31,12 @@ class Glow(nn.Module):
             x, sldj = self._pre_process(x)
 
         x = squeeze(x)
-        x, sldj = self.flows(x, sldj, reverse)
+        x, sldj = self.flows(x, x2, sldj, reverse)
         x = squeeze(x, reverse=True)
 
         return x, sldj
 
     def _pre_process(self, x):
-        """Dequantize the input image `x` and convert to logits.
-        See Also:
-            - Dequantization: https://arxiv.org/abs/1511.01844, Section 3.1
-            - Modeling logits: https://arxiv.org/abs/1605.08803, Section 4.1
-        Args:
-            x (torch.Tensor): Input image.
-        Returns:
-            y (torch.Tensor): Dequantized logits of `x`.
-        """
         y = (x * 255. + torch.rand_like(x)) / 256.
         y = (2 * y - 1) * self.bounds
         y = (y + 1) / 2
@@ -71,34 +50,29 @@ class Glow(nn.Module):
         return y, sldj
 
 
-class _Glow(nn.Module):
-    """Recursive constructor for a Glow model. Each call creates a single level.
-    Args:
-        in_channels (int): Number of channels in the input.
-        mid_channels (int): Number of channels in hidden layers of each step.
-        num_levels (int): Number of levels to construct. Counter for recursion.
-        num_steps (int): Number of steps of flow for each level.
-    """
+class _CGlow(nn.Module):
     def __init__(self, in_channels, mid_channels, num_levels, num_steps):
-        super(_Glow, self).__init__()
-        self.steps = nn.ModuleList([_FlowStep(in_channels=in_channels,
+        super(_CGlow, self).__init__()
+        self.steps = nn.ModuleList([_CFlowStep(in_channels=in_channels,
                                               mid_channels=mid_channels)
                                     for _ in range(num_steps)])
 
         if num_levels > 1:
-            self.next = _Glow(in_channels=2 * in_channels,
+            self.next = _CGlow(in_channels=2 * in_channels,
                               mid_channels=mid_channels,
                               num_levels=num_levels - 1,
                               num_steps=num_steps)
         else:
             self.next = None
 
-    def forward(self, x, sldj, reverse=False):
+    def forward(self, x, x2, sldj, reverse=False):
         if not reverse:
             for step in self.steps:
-                x, sldj = step(x, sldj, reverse)
+                x, sldj = step(x, x2, sldj, reverse)
 
         if self.next is not None:
+            import pdb
+            pdb.set_trace()
             x = squeeze(x)
             x, x_split = x.chunk(2, dim=1)
             x, sldj = self.next(x, sldj, reverse)
@@ -107,28 +81,28 @@ class _Glow(nn.Module):
 
         if reverse:
             for step in reversed(self.steps):
-                x, sldj = step(x, sldj, reverse)
+                x, sldj = step(x, x2, sldj, reverse)
 
         return x, sldj
 
 
-class _FlowStep(nn.Module):
+class _CFlowStep(nn.Module):
     def __init__(self, in_channels, mid_channels):
-        super(_FlowStep, self).__init__()
+        super(_CFlowStep, self).__init__()
 
         # Activation normalization, invertible 1x1 convolution, affine coupling
         self.norm = ActNorm(in_channels, return_ldj=True)
         self.conv = InvConv(in_channels)
-        self.coup = Coupling(in_channels // 2, mid_channels)
+        self.coup = ConditionalCoupling(in_channels // 2, mid_channels)
 
-    def forward(self, x, sldj=None, reverse=False):
+    def forward(self, x, x2, sldj=None, reverse=False):
         if reverse:
-            x, sldj = self.coup(x, sldj, reverse)
+            x, sldj = self.coup(x, x2, sldj, reverse)
             x, sldj = self.conv(x, sldj, reverse)
             x, sldj = self.norm(x, sldj, reverse)
         else:
             x, sldj = self.norm(x, sldj, reverse)
             x, sldj = self.conv(x, sldj, reverse)
-            x, sldj = self.coup(x, sldj, reverse)
+            x, sldj = self.coup(x, x2, sldj, reverse)
 
         return x, sldj
