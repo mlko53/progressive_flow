@@ -30,10 +30,10 @@ def main(args):
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
 
-    trainset = Dataset("train", args.dataset, args.size, False)
+    trainset = Dataset("train", args.dataset, args.size, args.conditional)
     trainloader = data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
     
-    testset = Dataset("test", args.dataset, args.size, False)
+    testset = Dataset("test", args.dataset, args.size, args.conditional)
     testloader = data.DataLoader(testset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
     image_channels = 1 if args.dataset == "MNIST" else 3
@@ -46,7 +46,7 @@ def main(args):
                num_steps=args.num_steps)
     net = net.to(device)
     if device == 'cuda':
-        net = torch.nn.DataParallel(net, args.gpu_ids)
+        #net = torch.nn.DataParallel(net, args.gpu_ids)
         cudnn.benchmark = args.benchmark
 
     start_epoch = 0
@@ -68,21 +68,28 @@ def main(args):
 
     for epoch in range(start_epoch, start_epoch + args.num_epochs):
         train(epoch, net, trainloader, device, optimizer, scheduler,
-              loss_fn, args.max_grad_norm)
-        test(epoch, net, testloader, device, loss_fn, args.num_samples)
+              loss_fn, args.max_grad_norm, args.conditional)
+        # TODO: modify for conditioanl
+        test(epoch, net, testloader, device, loss_fn, args.num_samples, args.conditional, args.name)
 
 
 @torch.enable_grad()
-def train(epoch, net, trainloader, device, optimizer, scheduler, loss_fn, max_grad_norm):
+def train(epoch, net, trainloader, device, optimizer, scheduler, loss_fn, max_grad_norm, conditional):
     global global_step
     print('\nEpoch: %d' % epoch)
     net.train()
     loss_meter = util.AverageMeter()
     with tqdm(total=len(trainloader.dataset)) as progress_bar:
         for x in trainloader:
-            x = x.to(device)
             optimizer.zero_grad()
-            z, sldj = net(x, reverse=False)
+            if conditional:
+                x1, x2 = x
+                x1 = x1.to(device)
+                x2 = x2.to(device)
+                z, sldj = net(x1, x2, reverse=False)
+            else:
+                x = x.to(device)
+                z, sldj = net(x, reverse=False)
             loss = loss_fn(z, sldj)
             loss_meter.update(loss.item(), x.size(0))
             loss.backward()
@@ -114,14 +121,20 @@ def sample(net, batch_size, device):
 
 
 @torch.no_grad()
-def test(epoch, net, testloader, device, loss_fn, num_samples):
+def test(epoch, net, testloader, device, loss_fn, num_samples, conditional, name):
     global best_loss
     net.eval()
     loss_meter = util.AverageMeter()
     with tqdm(total=len(testloader.dataset)) as progress_bar:
-        for x, _ in testloader:
-            x = x.to(device)
-            z, sldj = net(x, reverse=False)
+        for x in testloader:
+            if conditional:
+                x1, x2 = x
+                x1 = x1.to(device)
+                x2 = x2.to(device)
+                z, sldj = net(x1, x2, reverse=False)
+            else:
+                x = x.to(device)
+                z, sldj = net(x, reverse=False)
             loss = loss_fn(z, sldj)
             loss_meter.update(loss.item(), x.size(0))
             progress_bar.set_postfix(nll=loss_meter.avg,
@@ -137,14 +150,14 @@ def test(epoch, net, testloader, device, loss_fn, num_samples):
             'epoch': epoch,
         }
         os.makedirs('ckpts', exist_ok=True)
-        torch.save(state, 'ckpts/best.pth.tar')
+        torch.save(state, 'ckpts/{}_best.pth.tar'.format(name))
         best_loss = loss_meter.avg
 
     # Save samples and data
     images = sample(net, num_samples, device)
     os.makedirs('samples', exist_ok=True)
     images_concat = torchvision.utils.make_grid(images, nrow=int(num_samples ** 0.5), padding=2, pad_value=255)
-    torchvision.utils.save_image(images_concat, 'samples/epoch_{}.png'.format(epoch))
+    torchvision.utils.save_image(images_concat, 'samples/{}_epoch_{}.png'.format(name, epoch))
 
 
 if __name__ == '__main__':
@@ -155,22 +168,24 @@ if __name__ == '__main__':
 
     parser.add_argument('--batch_size', default=64, type=int, help='Batch size per GPU')
     parser.add_argument('--benchmark', type=str2bool, default=True, help='Turn on CUDNN benchmarking')
+    parser.add_argument('--conditional', type=str2bool, default=False, help='Train conditional flow on resolution pairs')
     parser.add_argument('--gpu_ids', default=[0], type=eval, help='IDs of GPUs to use')
     parser.add_argument('--lr', default=1e-3, type=float, help='Learning rate')
     parser.add_argument('--max_grad_norm', type=float, default=-1., help='Max gradient norm for clipping')
+    parser.add_argument('--name', type=str, default='debugging', help='Name of experiment')
     parser.add_argument('--num_channels', '-C', default=512, type=int, help='Number of channels in hidden layers')
-    parser.add_argument('--num_levels', '-L', default=3, type=int, help='Number of levels in the Glow model')
-    parser.add_argument('--num_steps', '-K', default=32, type=int, help='Number of steps of flow in each level')
+    parser.add_argument('--num_levels', '-L', default=2, type=int, help='Number of levels in the Glow model')
+    parser.add_argument('--num_steps', '-K', default=16, type=int, help='Number of steps of flow in each level')
     parser.add_argument('--num_epochs', default=100, type=int, help='Number of epochs to train')
     parser.add_argument('--num_samples', default=64, type=int, help='Number of samples at test time')
     parser.add_argument('--num_workers', default=8, type=int, help='Number of data loader threads')
     parser.add_argument('--resume', type=str2bool, default=False, help='Resume from checkpoint')
     parser.add_argument('--seed', type=int, default=0, help='Random seed for reproducibility')
     parser.add_argument('--size', type=int, default=32, help='Resolution to generate')
-    parser.add_argument('--warm_up', default=500000, type=int, help='Number of steps for lr warm-up')
-    parser.add_argument('--dataset', default="CIFAR", type=str, help='Dataset to use')
+    parser.add_argument('--warm_up', default=10000, type=int, help='Number of steps for lr warm-up')
+    parser.add_argument('--dataset', default="CelebA", type=str, help='Dataset to use')
 
-    best_loss = 0
+    best_loss = float('inf')
     global_step = 0
 
     main(parser.parse_args())
