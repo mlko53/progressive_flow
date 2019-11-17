@@ -48,11 +48,7 @@ class ConditionalCoupling(nn.Module):
     def forward(self, x, x2, ldj, reverse=False):
         x_change, x_id = x.chunk(2, dim=1)
 
-        try:
-            st = self.nn(torch.cat((x_id, x2), dim=1))
-        except:
-            import pdb
-            pdb.set_trace()
+        st = self.nn(torch.cat((x_id, x2), dim=1))
         s, t = st[:, 0::2, ...], st[:, 1::2, ...]
         s = self.scale * torch.tanh(s)
 

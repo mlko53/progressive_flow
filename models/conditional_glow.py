@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .act_norm import ActNorm
+from .act_norm import ConditionalActNorm, ActNorm
 from .coupling import ConditionalCoupling
 from .inv_conv import InvConv
 from .utils import squeeze
@@ -94,7 +94,7 @@ class _CFlowStep(nn.Module):
         super(_CFlowStep, self).__init__()
 
         # Activation normalization, invertible 1x1 convolution, affine coupling
-        self.norm = ActNorm(in_channels, return_ldj=True)
+        self.norm = ConditionalActNorm(in_channels,  mid_channels, cond_channels, return_ldj=True)
         self.conv = InvConv(in_channels)
         self.coup = ConditionalCoupling(in_channels // 2, mid_channels, cond_channels)
 
@@ -102,9 +102,9 @@ class _CFlowStep(nn.Module):
         if reverse:
             x, sldj = self.coup(x, x2, sldj, reverse)
             x, sldj = self.conv(x, sldj, reverse)
-            x, sldj = self.norm(x, sldj, reverse)
+            x, sldj = self.norm(x, x2, sldj, reverse)
         else:
-            x, sldj = self.norm(x, sldj, reverse)
+            x, sldj = self.norm(x, x2, sldj, reverse)
             x, sldj = self.conv(x, sldj, reverse)
             x, sldj = self.coup(x, x2, sldj, reverse)
 

@@ -58,7 +58,7 @@ def main(args):
         # Load checkpoint.
         print('Resuming from checkpoint at ckpts/best.pth.tar...')
         assert os.path.isdir('ckpts'), 'Error: no checkpoint directory found!'
-        checkpoint = torch.load('ckpts/best.pth.tar')
+        checkpoint = torch.load('ckpts/{}_best.pth.tar'.format(args.name))
         net.load_state_dict(checkpoint['net'])
         global best_loss
         global global_step

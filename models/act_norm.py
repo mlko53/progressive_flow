@@ -72,21 +72,13 @@ class ActNorm(nn.Module):
         return x
 
 class ConditionalActNorm(nn.Module):
-    """Activation normalization for 2D inputs.
-    The bias and scale get initialized using the mean and variance of the
-    first mini-batch. After the init, bias and scale are trainable parameters.
-    Adapted from:
-        > https://github.com/openai/glow
-    """
-    def __init__(self, num_features, mid_channels, scale=1., return_ldj=False):
+    def __init__(self, num_features, mid_channels, cond_channels, return_ldj=False):
         super(ConditionalActNorm, self).__init__()
         self.register_buffer('is_initialized', torch.zeros(1))
         
-        self.nn = NN(num_features, mid_channels)
+        self.nn = NN(cond_channels, mid_channels, num_features)
 
         self.num_features = num_features
-        self.scale = float(scale)
-        self.eps = 1e-6
         self.return_ldj = return_ldj
 
     def _center(self, x, bias, reverse=False):
@@ -111,9 +103,9 @@ class ConditionalActNorm(nn.Module):
         return x, sldj
 
     def forward(self, x, x2, ldj=None, reverse=False):
-
         nn_output = self.nn(x2)
         bias, logs = nn_output.chunk(2, dim=1)
+        logs = F.tanh(logs)
 
         if reverse:
             x, ldj = self._scale(x, ldj, logs, reverse)
@@ -158,7 +150,7 @@ class NN(nn.Module):
         out_channels (int): Number of channels in the output.
         use_act_norm (bool): Use activation norm rather than batch norm.
     """
-    def __init__(self, in_channels, mid_channels,
+    def __init__(self, in_channels, mid_channels, out_channels,
                  use_act_norm=False):
         super(NN, self).__init__()
         norm_fn = ActNorm if use_act_norm else nn.BatchNorm2d
@@ -174,10 +166,9 @@ class NN(nn.Module):
         nn.init.normal_(self.mid_conv.weight, 0., 0.05)
 
         self.out_norm = norm_fn(mid_channels)
-        self.out_conv = nn.Conv2d(mid_channels, 2 * in_channels,
+        self.out_conv = nn.Conv2d(mid_channels, 2 * out_channels,
                                   kernel_size=3, padding=1, bias=True)
-        nn.init.zeros_(self.out_conv.weight)
-        nn.init.zeros_(self.out_conv.bias)
+        nn.init.normal_(self.out_conv.weight, 0., 0.05)
 
         self.pool = nn.AdaptiveAvgPool2d(1)
 
