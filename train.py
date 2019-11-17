@@ -13,7 +13,7 @@ import torch.utils.data as data
 import torchvision
 import torchvision.transforms as transforms
 
-from models import Glow, NLLLoss
+from models import Glow, ConditionalGlow, NLLLoss
 from tqdm import tqdm
 from dataset import Dataset
 import utils as util
@@ -40,10 +40,14 @@ def main(args):
 
     # Model
     print('Building model..')
-    net = Glow(image_channels=image_channels,
-               num_channels=args.num_channels,
-               num_levels=args.num_levels,
-               num_steps=args.num_steps)
+    if args.conditional:
+        model = ConditionalGlow
+    else:
+        model = Glow
+    net = model(image_channels=image_channels,
+                num_channels=args.num_channels,
+                num_levels=args.num_levels,
+                num_steps=args.num_steps)
     net = net.to(device)
     if device == 'cuda':
         #net = torch.nn.DataParallel(net, args.gpu_ids)
@@ -174,8 +178,8 @@ if __name__ == '__main__':
     parser.add_argument('--max_grad_norm', type=float, default=-1., help='Max gradient norm for clipping')
     parser.add_argument('--name', type=str, default='debugging', help='Name of experiment')
     parser.add_argument('--num_channels', '-C', default=512, type=int, help='Number of channels in hidden layers')
-    parser.add_argument('--num_levels', '-L', default=2, type=int, help='Number of levels in the Glow model')
-    parser.add_argument('--num_steps', '-K', default=16, type=int, help='Number of steps of flow in each level')
+    parser.add_argument('--num_levels', '-L', default=3, type=int, help='Number of levels in the Glow model')
+    parser.add_argument('--num_steps', '-K', default=32, type=int, help='Number of steps of flow in each level')
     parser.add_argument('--num_epochs', default=100, type=int, help='Number of epochs to train')
     parser.add_argument('--num_samples', default=64, type=int, help='Number of samples at test time')
     parser.add_argument('--num_workers', default=8, type=int, help='Number of data loader threads')

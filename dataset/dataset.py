@@ -22,6 +22,7 @@ class Dataset(data.Dataset):
         
         downsampled_transform = transforms.Compose([
             transforms.Resize(resolution // 2), 
+            transforms.CenterCrop(resolution // 2),
             transforms.ToTensor()
         ])
 
@@ -37,7 +38,7 @@ class Dataset(data.Dataset):
         if name == "CelebA":
             self.data = Celeba_Dataset(split=split, transform=transform)
             if return_tuple:
-                self.downsampled_data = Celeba_dataset(split=split, transform=transform)
+                self.downsampled_data = Celeba_Dataset(split=split, transform=downsampled_transform)
         
     def __len__(self):
         return len(self.data)
