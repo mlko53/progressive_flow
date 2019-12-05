@@ -38,10 +38,11 @@ class Glow(nn.Module):
             if x.min() < 0 or x.max() > 1:
                 raise ValueError('Expected x in [0, 1], got min/max {}/{}'
                                  .format(x.min(), x.max()))
-
+  
             # De-quantize and convert to logits
             x, sldj = self._pre_process(x)
 
+        sldj = torch.zeros(x.size(0), device=x.device)
         x = squeeze(x)
         x, sldj = self.flows(x, sldj, reverse)
         x = squeeze(x, reverse=True)

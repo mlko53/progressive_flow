@@ -9,13 +9,13 @@ from .utils import squeeze
 
 
 class ConditionalGlow(nn.Module):
-    def __init__(self, image_channels, num_channels, num_levels, num_steps):
+    def __init__(self, image_channels, cond_channels, num_channels, num_levels, num_steps):
         super(ConditionalGlow, self).__init__()
 
         self.register_buffer('bounds', torch.tensor([0.9], dtype=torch.float32))
         self.flows = _CGlow(in_channels=4 * image_channels,  # RGB image after squeeze
                            mid_channels=num_channels,
-                           cond_channels=image_channels,
+                           cond_channels=4*cond_channels,
                            num_levels=num_levels,
                            num_steps=num_steps)
 
@@ -30,10 +30,13 @@ class ConditionalGlow(nn.Module):
 
             # De-quantize and convert to logits
             x, sldj = self._pre_process(x)
-
+            x2, _ = self._pre_process(x2)
+            
         x = squeeze(x)
+        x2 = squeeze(x2)
         x, sldj = self.flows(x, x2, sldj, reverse)
         x = squeeze(x, reverse=True)
+        x2 = squeeze(x2, reverse=True)
 
         return x, sldj
 
@@ -94,7 +97,8 @@ class _CFlowStep(nn.Module):
         super(_CFlowStep, self).__init__()
 
         # Activation normalization, invertible 1x1 convolution, affine coupling
-        self.norm = ConditionalActNorm(in_channels,  mid_channels, cond_channels, return_ldj=True)
+        #self.norm = ConditionalActNorm(in_channels,  mid_channels, cond_channels, return_ldj=True)
+        self.norm = ActNorm(in_channels, return_ldj=True)
         self.conv = InvConv(in_channels)
         self.coup = ConditionalCoupling(in_channels // 2, mid_channels, cond_channels)
 
@@ -102,9 +106,11 @@ class _CFlowStep(nn.Module):
         if reverse:
             x, sldj = self.coup(x, x2, sldj, reverse)
             x, sldj = self.conv(x, sldj, reverse)
-            x, sldj = self.norm(x, x2, sldj, reverse)
+            #x, sldj = self.norm(x, x2, sldj, reverse)
+            x, sldj = self.norm(x, sldj, reverse)
         else:
-            x, sldj = self.norm(x, x2, sldj, reverse)
+            #x, sldj = self.norm(x, x2, sldj, reverse)
+            x, sldj = self.norm(x, sldj, reverse)
             x, sldj = self.conv(x, sldj, reverse)
             x, sldj = self.coup(x, x2, sldj, reverse)
 

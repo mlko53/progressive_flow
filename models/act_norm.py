@@ -94,7 +94,7 @@ class ConditionalActNorm(nn.Module):
             x = x * logs.exp()
 
         if sldj is not None:
-            ldj = logs.sum() * x.size(2) * x.size(3)
+            ldj = logs.mean(0).sum() * x.size(2) * x.size(3)
             if reverse:
                 sldj = sldj - ldj
             else:
@@ -105,7 +105,6 @@ class ConditionalActNorm(nn.Module):
     def forward(self, x, x2, ldj=None, reverse=False):
         nn_output = self.nn(x2)
         bias, logs = nn_output.chunk(2, dim=1)
-        logs = F.tanh(logs)
 
         if reverse:
             x, ldj = self._scale(x, ldj, logs, reverse)
@@ -171,21 +170,27 @@ class NN(nn.Module):
         nn.init.normal_(self.out_conv.weight, 0., 0.05)
 
         self.pool = nn.AdaptiveAvgPool2d(1)
+        
+        #self.nn = nn.Linear(8 * out_channels, 2 * out_channels)
+        #self.out_channels = out_channels
 
 
     def forward(self, x):
-        x = self.in_norm(x)
+        #x = self.in_norm(x)
         x = F.relu(x)
         x = self.in_conv(x)
 
-        x = self.mid_norm(x)
+        #x = self.mid_norm(x)
         x = F.relu(x)
         x = self.mid_conv(x)
 
-        x = self.out_norm(x)
+        #x = self.out_norm(x)
         x = F.relu(x)
         x = self.out_conv(x)
 
         x = self.pool(x)
+        #x = x.view(-1, 8*self.out_channels)
+        #x = self.nn(x)
+        #x = x.view(-1, 2*self.out_channels, 1, 1)
 
         return x
